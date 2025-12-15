@@ -72,7 +72,8 @@ jobs:
           # 这个方法在所有平台都有效
           echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Build binary
+      - name: Build binary (Unix)
+        if: matrix.os != 'windows-latest'
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
@@ -91,7 +92,30 @@ jobs:
           fi
           
           # 检查文件
-          ls -lh ${{ matrix.asset_name }} 2>/dev/null || dir ${{ matrix.asset_name }}
+          ls -lh ${{ matrix.asset_name }}
+
+      - name: Build binary (Windows)
+        if: matrix.os == 'windows-latest'
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        shell: powershell
+        run: |
+          # Windows构建脚本
+          Write-Host "Building for $env:GOOS/$env:GOARCH..."
+          
+          # 构建命令
+          if ($env:VERSION) {
+            Write-Host "Building version: $env:VERSION"
+            go build -ldflags="-X main.Version=$env:VERSION -s -w" -o ${{ matrix.asset_name }} ./cmd/findx
+          } else {
+            go build -ldflags="-s -w" -o ${{ matrix.asset_name }} ./cmd/findx
+          }
+          
+          # 检查文件
+          Get-ChildItem ${{ matrix.asset_name }} | Format-Table Name, Length
 
       - name: Set executable permissions (Unix)
         if: matrix.goos != 'windows'
