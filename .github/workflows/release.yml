@@ -11,11 +11,12 @@ permissions:
 
 jobs:
   build:
-    name: Build for ${{ matrix.os }}
+    name: Build for ${{ matrix.os }} (${{ matrix.goarch }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
+          # 64位架构
           - os: windows-latest
             goos: windows
             goarch: amd64
@@ -45,6 +46,25 @@ jobs:
             goarch: arm64
             output: findx
             asset_name: findx-darwin-arm64
+          
+          # 新增：32位架构支持
+          - os: ubuntu-latest
+            goos: linux
+            goarch: 386
+            output: findx
+            asset_name: findx-linux-386
+          
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm
+            output: findx
+            asset_name: findx-linux-arm
+          
+          - os: windows-latest
+            goos: windows
+            goarch: 386
+            output: findx.exe
+            asset_name: findx-windows-386.exe
 
     steps:
       - name: Checkout code
@@ -55,13 +75,29 @@ jobs:
         with:
           go-version: '1.20'
 
+      - name: Get version from tag
+        id: get_version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          go build -ldflags="-s -w" -o ${{ matrix.output }} ./cmd/findx
+          # 构建时加入版本信息
+          if [ -n "${{ steps.get_version.outputs.VERSION }}" ]; then
+            go build -ldflags="-X main.Version=${{ steps.get_version.outputs.VERSION }} -s -w" \
+              -o ${{ matrix.output }} ./cmd/findx
+          else
+            go build -ldflags="-s -w" -o ${{ matrix.output }} ./cmd/findx
+          fi
+          
+          # 为 Unix/Linux 文件添加执行权限
+          if [[ "${{ matrix.goos }}" != "windows" ]]; then
+            chmod +x ${{ matrix.output }}
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -73,6 +109,8 @@ jobs:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -81,22 +119,97 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
+          pattern: findx-*
+          merge-multiple: true  # 合并所有同名 artifact
 
-      - name: Display structure of downloaded files
-        run: ls -R ./artifacts
+      - name: Rename and organize release files
+        run: |
+          # 创建发布目录
+          mkdir -p release
+          
+          # 查找并处理所有 artifact
+          echo "处理下载的文件..."
+          find ./artifacts -type f -name "findx*" | while read file; do
+            filename=$(basename "$file")
+            echo "处理: $filename"
+            
+            # 根据文件名判断平台和架构
+            if [[ "$filename" == *"windows"* ]]; then
+              # Windows 文件
+              cp "$file" "./release/$filename"
+            else
+              # Unix/Linux 文件
+              cp "$file" "./release/$filename"
+              chmod +x "./release/$filename"
+            fi
+          done
+          
+          # 生成 SHA256 校验和
+          echo "生成校验和..."
+          cd release
+          for file in findx-*; do
+            if [[ -f "$file" ]] && [[ ! "$file" == *.sha256 ]]; then
+              sha256sum "$file" > "$file.sha256"
+              echo "生成: $file.sha256"
+            fi
+          done
+          cd ..
+          
+          # 列出最终文件
+          echo "最终发布文件:"
+          ls -la release/
 
       - name: Create Release
-        id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            ./artifacts/findx-windows-amd64.exe/findx.exe
-            ./artifacts/findx-linux-amd64/findx
-            ./artifacts/findx-linux-arm64/findx
-            ./artifacts/findx-darwin-amd64/findx
-            ./artifacts/findx-darwin-arm64/findx
+          tag_name: ${{ github.ref_name }}
+          name: FindX ${{ github.ref_name }}
+          body: |
+            ## FindX ${{ github.ref_name }}
+            
+            ### 下载链接
+            
+            **Windows**
+            - 64位: [findx-windows-amd64.exe](findx-windows-amd64.exe) [[sha256](findx-windows-amd64.exe.sha256)]
+            - 32位: [findx-windows-386.exe](findx-windows-386.exe) [[sha256](findx-windows-386.exe.sha256)]
+            
+            **Linux**
+            - 64位 x86: [findx-linux-amd64](findx-linux-amd64) [[sha256](findx-linux-amd64.sha256)]
+            - 64位 ARM: [findx-linux-arm64](findx-linux-arm64) [[sha256](findx-linux-arm64.sha256)]
+            - 32位 x86: [findx-linux-386](findx-linux-386) [[sha256](findx-linux-386.sha256)]
+            - 32位 ARM: [findx-linux-arm](findx-linux-arm) [[sha256](findx-linux-arm.sha256)]
+            
+            **macOS**
+            - Intel: [findx-darwin-amd64](findx-darwin-amd64) [[sha256](findx-darwin-amd64.sha256)]
+            - Apple Silicon: [findx-darwin-arm64](findx-darwin-arm64) [[sha256](findx-darwin-arm64.sha256)]
+            
+            ### 使用说明
+            
+            #### Windows
+            ```powershell
+            # 直接运行
+            .\findx-windows-amd64.exe --help
+            ```
+            
+            #### Linux/macOS
+            ```bash
+            # 添加执行权限
+            chmod +x findx-linux-amd64
+            # 运行
+            ./findx-linux-amd64 --help
+            ```
+            
+            #### 验证文件完整性
+            ```bash
+            # Linux/macOS
+            sha256sum -c findx-linux-amd64.sha256
+            
+            # Windows PowerShell
+            Get-FileHash findx-windows-amd64.exe -Algorithm SHA256 | Format-List
+            ```
+          files: ./release/*
           draft: false
-          prerelease: false
-          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          generate_release_notes: false  # 使用自定义的 body
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
