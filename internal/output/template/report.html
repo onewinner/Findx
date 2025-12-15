@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Findx 安全扫描报告</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: #f5f7fa;
+            color: #2c3e50;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        /* 顶部工具栏 */
+        .toolbar {
+            background: white;
+            border-bottom: 1px solid #e4e7eb;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        
+        .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .logo {
+            font-size: 1.4em;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .logo::before {
+            content: '🔍';
+            font-size: 1.2em;
+            background: none;
+            -webkit-text-fill-color: initial;
+        }
+        
+        .stats-mini {
+            display: flex;
+            gap: 20px;
+            font-size: 0.85em;
+        }
+        
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            border-radius: 8px;
+            border: 1px solid #e4e7eb;
+            transition: all 0.2s;
+        }
+        
+        .stat-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+            transform: translateY(-1px);
+        }
+        
+        .stat-item .icon {
+            font-size: 1.2em;
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+        }
+        
+        .stat-item .value {
+            font-weight: 700;
+            color: #667eea;
+            font-size: 1.05em;
+        }
+        
+        .stat-item .label {
+            color: #6b7280;
+            font-size: 0.9em;
+        }
+        
+        .toolbar-right {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .risk-badge {
+            padding: 5px 12px;
+            border-radius: 16px;
+            font-size: 0.8em;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+            cursor: default;
+        }
+        
+        .risk-badge:hover {
+            transform: scale(1.05);
+        }
+        
+        .risk-badge.critical {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.2) 100%);
+            color: #dc2626;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+        }
+        
+        .risk-badge.high {
+            background: linear-gradient(135deg, rgba(249, 115, 22, 0.2) 0%, rgba(234, 88, 12, 0.2) 100%);
+            color: #ea580c;
+            border: 1px solid rgba(249, 115, 22, 0.4);
+            box-shadow: 0 2px 8px rgba(249, 115, 22, 0.2);
+        }
+        
+        .risk-badge.medium {
+            background: linear-gradient(135deg, rgba(234, 179, 8, 0.2) 0%, rgba(202, 138, 4, 0.2) 100%);
+            color: #ca8a04;
+            border: 1px solid rgba(234, 179, 8, 0.4);
+            box-shadow: 0 2px 8px rgba(234, 179, 8, 0.2);
+        }
+        
+        .risk-badge.low {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(22, 163, 74, 0.2) 100%);
+            color: #16a34a;
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2);
+        }
+        
+        /* 过滤栏 */
+        .filter-bar {
+            background: white;
+            border-bottom: 1px solid #e4e7eb;
+            padding: 10px 24px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        .filter-btn {
+            padding: 7px 16px;
+            background: white;
+            border: 2px solid #e4e7eb;
+            color: #6b7280;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 500;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .filter-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(102, 126, 234, 0.1);
+            transform: translate(-50%, -50%);
+            transition: width 0.3s, height 0.3s;
+        }
+        
+        .filter-btn:hover::before {
+            width: 200px;
+            height: 200px;
+        }
+        
+        .filter-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+        }
+        
+        .filter-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .filter-btn.active::before {
+            display: none;
+        }
+        
+        .search-box {
+            flex: 1;
+            max-width: 400px;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 7px 14px;
+            background: #f8f9fa;
+            border: 1px solid #d1d5db;
+            color: #2c3e50;
+            border-radius: 6px;
+            font-size: 0.85em;
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+        }
+        
+        .search-box input::placeholder {
+            color: #9ca3af;
+        }
+        
+        /* 主内容区 */
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        /* 侧边栏 */
+        .sidebar {
+            width: 280px;
+            min-width: 200px;
+            max-width: 500px;
+            background: white;
+            border-right: 1px solid #e4e7eb;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        
+        .sidebar-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e4e7eb;
+            font-size: 0.85em;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #f8f9fa;
+        }
+        
+        .file-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        
+        .tree-folder {
+            margin: 4px 0;
+        }
+        
+        .tree-folder-header {
+            padding: 6px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85em;
+            transition: background 0.15s;
+        }
+        
+        .tree-folder-header:hover {
+            background: #f8f9fa;
+        }
+        
+        .tree-folder-icon {
+            font-size: 0.8em;
+            transition: transform 0.2s;
+            color: #6b7280;
+        }
+        
+        .tree-folder.collapsed .tree-folder-icon {
+            transform: rotate(-90deg);
+        }
+        
+        .tree-folder-name {
+            color: #4b5563;
+        }
+        
+        .tree-folder-children {
+            margin-left: 16px;
+            padding-left: 8px;
+            border-left: 1px solid #e4e7eb;
+        }
+        
+        .tree-folder.collapsed .tree-folder-children {
+            display: none;
+        }
+        
+        .tree-file {
+            padding: 6px 10px;
+            margin: 2px 0;
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85em;
+            transition: all 0.15s;
+        }
+        
+        .tree-file:hover {
+            background: #f8f9fa;
+        }
+        
+        .tree-file.active {
+            background: #eef2ff;
+            border-left: 2px solid #667eea;
+        }
+        
+        .tree-file-icon {
+            font-size: 0.9em;
+        }
+        
+        .tree-file-name {
+            flex: 1;
+            color: #4b5563;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .tree-file.active .tree-file-name {
+            color: #667eea;
+            font-weight: 500;
+        }
+        
+        .tree-file-count {
+            background: #ef4444;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: 600;
+        }
+        
+        /* 调整器 */
+        .resizer {
+            width: 4px;
+            background: #e4e7eb;
+            cursor: col-resize;
+            transition: background 0.2s;
+        }
+        
+        .resizer:hover,
+        .resizer.resizing {
+            background: #667eea;
+        }
+        
+        /* 结果区域 */
+        .results {
+            flex: 1;
+            overflow-y: auto;
+            background: #f5f7fa;
+            padding: 16px;
+        }
+        
+        .file-section {
+            margin-bottom: 16px;
+            background: white;
+            border: 1px solid #e4e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        
+        .file-header {
+            padding: 12px 16px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e4e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        
+        .file-header:hover {
+            background: #eef2ff;
+        }
+        
+        .file-path {
+            font-size: 0.9em;
+            color: #2c3e50;
+            font-family: 'Consolas', monospace;
+            flex: 1;
+            font-weight: 500;
+        }
+        
+        .file-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .open-file-btn {
+            padding: 4px 10px;
+            background: white;
+            border: 1px solid #d1d5db;
+            color: #6b7280;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: all 0.15s;
+        }
+        
+        .open-file-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+            background: #eef2ff;
+        }
+        
+        .file-count {
+            font-size: 0.8em;
+            color: #6b7280;
+        }
+        
+        .collapse-icon {
+            font-size: 0.8em;
+            color: #9ca3af;
+            transition: transform 0.2s;
+        }
+        
+        .file-section.collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+        
+        .file-results {
+            padding: 12px;
+        }
+        
+        .file-section.collapsed .file-results {
+            display: none;
+        }
+        
+        /* 结果项 */
+        .result-item {
+            background: #fafbfc;
+            border-left: 3px solid #667eea;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            transition: all 0.15s;
+            border: 1px solid #f0f1f3;
+        }
+        
+        .result-item:hover {
+            background: white;
+            transform: translateX(2px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        
+        .result-item.risk-critical {
+            border-left-color: #ef4444;
+        }
+        
+        .result-item.risk-high {
+            border-left-color: #f97316;
+        }
+        
+        .result-item.risk-medium {
+            border-left-color: #eab308;
+        }
+        
+        .result-item.risk-low {
+            border-left-color: #22c55e;
+        }
+        
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .result-title {
+            font-size: 0.9em;
+            color: #2c3e50;
+            font-weight: 500;
+        }
+        
+        .result-badge {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .badge-critical {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        .badge-high {
+            background: rgba(249, 115, 22, 0.2);
+            color: #f97316;
+        }
+        
+        .badge-medium {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
+        }
+        
+        .badge-low {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+        
+        .result-details {
+            display: grid;
+            gap: 8px;
+        }
+        
+        .detail-row {
+            display: flex;
+            gap: 12px;
+            font-size: 0.85em;
+        }
+        
+        .detail-label {
+            color: #6b7280;
+            min-width: 70px;
+            font-weight: 500;
+        }
+        
+        .detail-value {
+            color: #2c3e50;
+            flex: 1;
+            word-break: break-all;
+        }
+        
+        .detail-value code {
+            background: #f1f3f5;
+            color: #667eea;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Consolas', monospace;
+            font-size: 0.9em;
+            border: 1px solid #e4e7eb;
+        }
+        
+        .context-box {
+            background: #f8f9fa;
+            color: #4b5563;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+            font-size: 0.8em;
+            overflow-x: auto;
+            margin-top: 6px;
+            border: 1px solid #e4e7eb;
+            line-height: 1.5;
+        }
+        
+        /* 滚动条 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f5f7fa;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+        
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                max-height: 200px;
+            }
+            
+            .resizer {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部工具栏 -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <div class="logo">🔍 Findx</div>
+                <div class="stats-mini">
+                    <div class="stat-item">
+                        <span class="icon">📁</span>
+                        <span class="value">{{.TotalFiles}}</span>
+                        <span class="label">文件</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="icon">🔍</span>
+                        <span class="value">{{.TotalFindings}}</span>
+                        <span class="label">发现</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="icon">⏱️</span>
+                        <span class="value">{{.Duration}}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="toolbar-right">
+                <div class="risk-badge critical">
+                    <span>🔴</span>
+                    <span>{{.CriticalCount}}</span>
+                </div>
+                <div class="risk-badge high">
+                    <span>🟠</span>
+                    <span>{{.HighCount}}</span>
+                </div>
+                <div class="risk-badge medium">
+                    <span>🟡</span>
+                    <span>{{.MediumCount}}</span>
+                </div>
+                <div class="risk-badge low">
+                    <span>🟢</span>
+                    <span>{{.LowCount}}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 过滤栏 -->
+        <div class="filter-bar">
+            <button class="filter-btn active" onclick="filterResults('all')">全部</button>
+            <button class="filter-btn" onclick="filterResults('critical')">严重</button>
+            <button class="filter-btn" onclick="filterResults('high')">高危</button>
+            <button class="filter-btn" onclick="filterResults('medium')">中危</button>
+            <button class="filter-btn" onclick="filterResults('low')">低危</button>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="搜索文件路径或内容..." onkeyup="searchResults()">
+            </div>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 侧边栏 -->
+            <div class="sidebar" id="sidebar">
+                <div class="sidebar-header">文件列表</div>
+                <div class="file-tree" id="fileTree"></div>
+            </div>
+
+            <!-- 调整器 -->
+            <div class="resizer" id="resizer"></div>
+
+            <!-- 结果区域 -->
+            <div class="results" id="results">
+                {{range .Files}}
+                <div class="file-section" data-file="{{.Path}}">
+                    <div class="file-header" onclick="toggleFileSection(this)">
+                        <div class="file-path">{{.Path}}</div>
+                        <div class="file-actions">
+                            <button class="open-file-btn" onclick="event.stopPropagation(); openFile('{{.Path}}')">打开</button>
+                            <span class="file-count">{{.Count}} 项</span>
+                            <span class="collapse-icon">▼</span>
+                        </div>
+                    </div>
+                    <div class="file-results">
+                        {{range .Results}}
+                        <div class="result-item risk-{{.RiskLevel}}" data-risk="{{.RiskLevel}}">
+                            <div class="result-header">
+                                <div class="result-title">{{.Icon}} {{.RuleName}}</div>
+                                <div class="result-badge badge-{{.RiskLevel}}">{{.RiskLevelText}}</div>
+                            </div>
+                            <div class="result-details">
+                                <div class="detail-row">
+                                    <div class="detail-label">类型</div>
+                                    <div class="detail-value">{{.Type}}</div>
+                                </div>
+                                {{if .LineNumber}}
+                                <div class="detail-row">
+                                    <div class="detail-label">行号</div>
+                                    <div class="detail-value"><code>{{.LineNumber}}</code></div>
+                                </div>
+                                {{end}}
+                                {{if .Offset}}
+                                <div class="detail-row">
+                                    <div class="detail-label">偏移</div>
+                                    <div class="detail-value"><code>{{.Offset}}</code></div>
+                                </div>
+                                {{end}}
+                                <div class="detail-row">
+                                    <div class="detail-label">匹配值</div>
+                                    <div class="detail-value"><code>{{.MatchedValue}}</code></div>
+                                </div>
+                                {{if .Context}}
+                                <div class="detail-row">
+                                    <div class="detail-label">上下文</div>
+                                    <div class="detail-value">
+                                        <div class="context-box">{{.Context}}</div>
+                                    </div>
+                                </div>
+                                {{end}}
+                            </div>
+                        </div>
+                        {{end}}
+                    </div>
+                </div>
+                {{end}}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 侧边栏调整大小
+        const resizer = document.getElementById('resizer');
+        const sidebar = document.getElementById('sidebar');
+        let isResizing = false;
+
+        resizer.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            resizer.classList.add('resizing');
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+            const newWidth = e.clientX;
+            if (newWidth >= 200 && newWidth <= 500) {
+                sidebar.style.width = newWidth + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (isResizing) {
+                isResizing = false;
+                resizer.classList.remove('resizing');
+            }
+        });
+
+        // 构建文件树
+        function buildFileTree() {
+            const sections = document.querySelectorAll('.file-section');
+            const tree = {};
+
+            sections.forEach(section => {
+                const filePath = section.dataset.file;
+                const parts = filePath.split(/[/\\]/);
+                let current = tree;
+
+                parts.forEach((part, index) => {
+                    if (!current[part]) {
+                        current[part] = {
+                            isFile: index === parts.length - 1,
+                            path: filePath,
+                            children: {}
+                        };
+                    }
+                    current = current[part].children;
+                });
+            });
+
+            return tree;
+        }
+
+        // 渲染文件树
+        function renderTree(tree, container) {
+            Object.keys(tree).sort().forEach(key => {
+                const node = tree[key];
+                
+                if (node.isFile) {
+                    const fileDiv = document.createElement('div');
+                    fileDiv.className = 'tree-file';
+                    fileDiv.dataset.path = node.path;
+                    
+                    const section = document.querySelector(`[data-file="${CSS.escape(node.path)}"]`);
+                    const count = section ? section.querySelectorAll('.result-item').length : 0;
+                    
+                    const iconSpan = document.createElement('span');
+                    iconSpan.className = 'tree-file-icon';
+                    iconSpan.textContent = '📄';
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'tree-file-name';
+                    nameSpan.title = key;
+                    nameSpan.textContent = key;
+                    
+                    const countSpan = document.createElement('span');
+                    countSpan.className = 'tree-file-count';
+                    countSpan.textContent = count;
+                    
+                    fileDiv.appendChild(iconSpan);
+                    fileDiv.appendChild(nameSpan);
+                    fileDiv.appendChild(countSpan);
+                    
+                    fileDiv.onclick = () => scrollToFile(node.path);
+                    container.appendChild(fileDiv);
+                } else {
+                    const folderDiv = document.createElement('div');
+                    folderDiv.className = 'tree-folder';
+                    
+                    const headerDiv = document.createElement('div');
+                    headerDiv.className = 'tree-folder-header';
+                    
+                    const iconSpan = document.createElement('span');
+                    iconSpan.className = 'tree-folder-icon';
+                    iconSpan.textContent = '▼';
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'tree-folder-name';
+                    nameSpan.textContent = '📁 ' + key;
+                    
+                    headerDiv.appendChild(iconSpan);
+                    headerDiv.appendChild(nameSpan);
+                    
+                    const childrenDiv = document.createElement('div');
+                    childrenDiv.className = 'tree-folder-children';
+                    
+                    headerDiv.onclick = (e) => {
+                        e.stopPropagation();
+                        folderDiv.classList.toggle('collapsed');
+                    };
+                    
+                    folderDiv.appendChild(headerDiv);
+                    folderDiv.appendChild(childrenDiv);
+                    container.appendChild(folderDiv);
+                    
+                    renderTree(node.children, childrenDiv);
+                }
+            });
+        }
+
+        // 滚动到文件
+        function scrollToFile(path) {
+            const section = document.querySelector(`[data-file="${CSS.escape(path)}"]`);
+            if (section) {
+                if (section.classList.contains('collapsed')) {
+                    section.classList.remove('collapsed');
+                }
+                
+                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                
+                document.querySelectorAll('.tree-file').forEach(f => f.classList.remove('active'));
+                const treeFile = document.querySelector(`.tree-file[data-path="${CSS.escape(path)}"]`);
+                if (treeFile) {
+                    treeFile.classList.add('active');
+                }
+            }
+        }
+
+        // 打开文件
+        function openFile(path) {
+            const link = document.createElement('a');
+            link.href = 'file:///' + path.replace(/\\/g, '/');
+            link.target = '_blank';
+            link.click();
+        }
+
+        // 折叠/展开文件
+        function toggleFileSection(header) {
+            const section = header.parentElement;
+            section.classList.toggle('collapsed');
+        }
+
+        // 过滤结果
+        function filterResults(risk) {
+            const buttons = document.querySelectorAll('.filter-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            const items = document.querySelectorAll('.result-item');
+            items.forEach(item => {
+                if (risk === 'all' || item.dataset.risk === risk) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            updateFileSections();
+            updateTreeCounts();
+        }
+
+        // 搜索结果
+        function searchResults() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const sections = document.querySelectorAll('.file-section');
+
+            sections.forEach(section => {
+                const filePath = section.dataset.file.toLowerCase();
+                const items = section.querySelectorAll('.result-item');
+                let hasVisibleItems = false;
+
+                items.forEach(item => {
+                    const text = item.textContent.toLowerCase();
+                    if (text.includes(searchTerm) || filePath.includes(searchTerm)) {
+                        item.style.display = 'block';
+                        hasVisibleItems = true;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+
+                section.style.display = hasVisibleItems ? 'block' : 'none';
+            });
+
+            updateTreeVisibility();
+            updateTreeCounts();
+        }
+
+        // 更新文件区域显示
+        function updateFileSections() {
+            const sections = document.querySelectorAll('.file-section');
+            sections.forEach(section => {
+                const visibleItems = Array.from(section.querySelectorAll('.result-item')).filter(item => {
+                    return item.style.display !== 'none';
+                });
+                section.style.display = visibleItems.length > 0 ? 'block' : 'none';
+            });
+        }
+
+        // 更新树中的计数
+        function updateTreeCounts() {
+            document.querySelectorAll('.tree-file').forEach(fileNode => {
+                const path = fileNode.dataset.path;
+                const section = document.querySelector(`[data-file="${CSS.escape(path)}"]`);
+                if (section) {
+                    const visibleItems = Array.from(section.querySelectorAll('.result-item')).filter(item => {
+                        return item.style.display !== 'none';
+                    });
+                    const countSpan = fileNode.querySelector('.tree-file-count');
+                    if (countSpan) {
+                        countSpan.textContent = visibleItems.length;
+                    }
+                }
+            });
+        }
+
+        // 更新树的可见性
+        function updateTreeVisibility() {
+            document.querySelectorAll('.tree-file').forEach(fileNode => {
+                const path = fileNode.dataset.path;
+                const section = document.querySelector(`[data-file="${CSS.escape(path)}"]`);
+                fileNode.style.display = (section && section.style.display !== 'none') ? 'flex' : 'none';
+            });
+        }
+
+        // 页面加载完成后初始化
+        window.onload = function() {
+            const tree = buildFileTree();
+            const treeContainer = document.getElementById('fileTree');
+            renderTree(tree, treeContainer);
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+
+.idea
+.augment
+*.exe
+.codebuddy
+.vscode
+.kiro
+*.out
+*.bin
+*.run
+*.elf
+scripts
